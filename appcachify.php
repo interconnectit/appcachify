@@ -14,13 +14,29 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 	class appcachify {
 
+		/**
+		 * @var WP_Theme
+		 */
 		public $theme;
 
+		/**
+		 * @var string Default offline template file name
+		 */
 		public $offline_file = '307.php';
+
+		/**
+		 * @var bool Whether to use offline mode
+		 */
 		public $offline_mode = false;
 
+		/**
+		 * @var array List of file extensions to scan theme for
+		 */
 		public $extensions;
 
+		/**
+		 * @var string Used to buffer output sent before wp_enqueue_scripts hook runs
+		 */
 		public $output_buffer;
 
 		/**
@@ -55,6 +71,13 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 		}
 
+		/**
+		 * Handles the appcache request on wp_enqueue_scripts
+		 * Stops the output buffer, modifies headers and
+		 * delivers the manifest page or manifest itself
+		 *
+		 * @return void
+		 */
 		public function request() {
 			global $wp, $post;
 
@@ -84,6 +107,13 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 		}
 
+		/**
+		 * Captures requests to our manifest URLs
+		 *
+		 * @param string $template
+		 *
+		 * @return string
+		 */
 		public function template_redirect( $template ) {
 			global $wp, $post;
 
@@ -108,6 +138,14 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return $template;
 		}
 
+		/**
+		 * Returns the URL to the manifest page or the manifest itself
+		 *
+		 * @param bool $appcache If true fetches manifest URL
+		 * @param bool $echo     Whether to return or echo the URL
+		 *
+		 * @return string    Manifest page or manifest URL
+		 */
 		public function manifest_url( $appcache = false, $echo = true ) {
 			$url = get_home_url() . '/manifest' . ( $appcache ? '.appcache' : '' );
 			if ( $echo )
@@ -115,10 +153,20 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return $url;
 		}
 
+		/**
+		 * Placeholder page to reference the manifest file
+		 *
+		 * @return void
+		 */
 		public function manifest_page() {
 			echo '<!DOCTYPE html><html manifest="' . $this->manifest_url( true, false ) . '"><head><title></title></head><body></body></html>';
 		}
 
+		/**
+		 * Iframe referencing the manifest page
+		 *
+		 * @return void
+		 */
 		public function manifest_page_frame() {
 			echo '<iframe style="display:none;" src="' . $this->manifest_url( false, false ) . '"></iframe>';
 		}
@@ -146,6 +194,13 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return str_replace( '\\', '/', $home_path );
 		}
 
+		/**
+		 * Attempts to resolve the path to a file from it's URL
+		 *
+		 * @param string $url
+		 *
+		 * @return string|bool    File path if successful, false if not
+		 */
 		public function get_path_from_url( $url ) {
 
 			// is it a local file
@@ -172,6 +227,13 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return false;
 		}
 
+		/**
+		 * Returns an array of URLs from a WP_Dependcies instance
+		 *
+		 * @param WP_Dependencies $assets
+		 *
+		 * @return array            Array of assets URLs
+		 */
 		public function get_assets( WP_Dependencies $assets ) {
 			$output = array();
 			foreach( $assets->queue as $handle ) {
@@ -180,6 +242,14 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return array_filter( array_unique( $output ) );
 		}
 
+		/**
+		 * Used to recurse through asset dependencies
+		 *
+		 * @param WP_Dependencies $assets
+		 * @param string         $handle The asset handle
+		 *
+		 * @return array
+		 */
 		public function recurse_deps( WP_Dependencies $assets, $handle ) {
 			$output = array();
 			$output[ $handle ] = preg_replace( '|^/wp-includes/|', includes_url(), $assets->registered[ $handle ]->src );
@@ -189,6 +259,11 @@ if ( ! class_exists( 'appcachify' ) ) {
 			return array_unique( $output );
 		}
 
+		/**
+		 * Generates the actual manifest file content
+		 *
+		 * @return void
+		 */
 		public function manifest() {
 			global $wp_scripts, $wp_styles;
 
@@ -240,10 +315,12 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 			// flag to alter when manifest should be refetched
 			$update = implode( "\n# ", array_filter( array(
-				'Theme: ' . $this->theme->get_stylesheet() . ' ' . $this->theme->display( 'version', false ),
-				'Modified: ' . date( "Y-m-d H:i:s", $assets_updated ),
-				'Size: ' . number_format( $assets_size/1000, 0 ) . 'kb'
+				'theme' => 'Theme: ' . $this->theme->get_stylesheet() . ' ' . $this->theme->display( 'version', false ),
+				'modified' => 'Modified: ' . date( "Y-m-d H:i:s", $assets_updated ),
+				'size' => 'Size: ' . number_format( $assets_size/1000, 0 ) . 'kb'
 			) ) );
+
+			$update = apply_filters( 'appcache_update_header', $update, $cache, $network, $fallback, $assets_size, $assets_updated );
 
 			echo "CACHE MANIFEST
 # $update
