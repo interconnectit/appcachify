@@ -1,4 +1,80 @@
 appcachify
 ==========
 
-Adds an appcache manifesto via an iframed page. Automatically lists all queued scripts, styles and theme images.
+Adds an appcache manifesto to WordPress via an iframed page. Automatically lists all queued scripts, styles and theme images.
+
+## Installation
+
+Upload the plugin to your plugins directory and activate it. There's no configuration involved or settings screen.
+
+## What does it do?
+
+The plugin adds an iframe to the footer of your website which points to `example.com/manifest`.
+
+That URL is an empty page that references the generated manifest file at `example.com/manifest.appcache`.
+
+The manifest itself is built in the following way:
+
+ 1. adds URLs of all queued scripts and styles
+ 2. searches theme files and folder for any images or other static assets
+ 3. if a theme has a 307.php template it is used as an offline fallback
+ 4. a timestamp of the most recently modified file is added to force appcache to refresh
+
+The net result of all this is that your main static files are stored locally on your visitors devices. For mobile this greatly helps to improve download and rendering times.
+
+## Adding items to the manifest
+
+Appcache can do more than store static assets. You could cache entire pages, or add fallbacks for when a user is offline.
+
+There are 3 main sections to a manifest:
+
+### CACHE
+
+The main `CACHE` section is for URLs that should be explicitly cached.
+
+```php
+<?php
+add_filter( 'appcache_cache', function( $urls ) {
+   $urls[] = '/page-available-offline/';
+   return $urls;
+} );
+?>
+```
+
+### NETWORK
+
+This section is for specifying URLs that should *never* be cached.
+ 
+```php
+<?php
+add_filter( 'appcache_network', function( $urls ) {
+   $urls[] = '*';
+   $urls[] = '/online-only-page/';
+   return $urls;
+} );
+?>
+```
+
+### FALLBACK
+
+The fallback section allows you to set fallback pages or images if the user is offline.
+
+```php
+<?php
+add_filter( 'appcache_fallback', function( $patterns ) {
+   $patterns[] = 'wp-content/uploads/ wp-content/uploads/offline.jpg';
+   return $patterns;
+} );
+?>
+```
+
+## More about appcache
+
+I strongly recommend learning more about what you can do with appcache by reading the following articles:
+
+ * http://www.html5rocks.com/en/tutorials/appcache/beginner/
+ * http://alistapart.com/article/application-cache-is-a-douchebag
+
+## License
+
+GPLv3
