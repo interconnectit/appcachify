@@ -69,6 +69,10 @@ if ( ! class_exists( 'appcachify' ) ) {
 			if ( file_exists( $this->theme->get_stylesheet_directory() . '/' . $this->offline_file ) )
 				$this->offline_mode = true;
 
+			// filter queued scripts and styles URLs to match our own
+			foreach( array( 'style', 'script' ) as $type )
+				add_filter( "{$type}_loader_src", array( $this, 'mod_src' ), 9, 2 );
+
 		}
 
 		/**
@@ -172,29 +176,6 @@ if ( ! class_exists( 'appcachify' ) ) {
 		}
 
 		/**
-		 * Get the absolute filesystem path to the root of the WordPress installation
-		 *
-		 * @since 1.5.0
-		 *
-		 * @uses get_option
-		 * @return string Full filesystem path to the root of the WordPress installation
-		 */
-		function get_home_path() {
-			$home = get_option( 'home' );
-			$siteurl = get_option( 'siteurl' );
-			if ( ! empty( $home ) && 0 !== strcasecmp( $home, $siteurl ) ) {
-				$wp_path_rel_to_home = str_ireplace( $home, '', $siteurl ); /* $siteurl - $home */
-				$pos = strripos( str_replace( '\\', '/', $_SERVER['SCRIPT_FILENAME'] ), trailingslashit( $wp_path_rel_to_home ) );
-				$home_path = substr( $_SERVER['SCRIPT_FILENAME'], 0, $pos );
-				$home_path = trailingslashit( $home_path );
-			} else {
-				$home_path = ABSPATH;
-			}
-
-			return str_replace( '\\', '/', $home_path );
-		}
-
-		/**
 		 * Attempts to resolve the path to a file from it's URL
 		 *
 		 * @param string $url
@@ -202,6 +183,10 @@ if ( ! class_exists( 'appcachify' ) ) {
 		 * @return string|bool    File path if successful, false if not
 		 */
 		public function get_path_from_url( $url ) {
+
+			// remove query string & hash
+			$url = preg_replace( '/([^\?]+)\?.*$/', '$1', $url );
+			$url = preg_replace( '/([^\#]+)\#.*$/', '$1', $url );
 
 			// is it a local file
 			if ( strstr( $url, get_home_url() ) ) {
@@ -215,9 +200,9 @@ if ( ! class_exists( 'appcachify' ) ) {
 			}
 
 			// is it from includes
-			if ( strstr( $url, '/wp-includes/' ) ) {
+			if ( strstr( $url, '/wp-includes/' ) && defined( 'WPINC' ) ) {
 
-				$file = str_replace( site_url(), $this->get_home_path(), $url );
+				$file = str_replace( includes_url(), ABSPATH . WPINC . '/', $url );
 
 				if ( file_exists( $file ) )
 					return $file;
@@ -225,6 +210,21 @@ if ( ! class_exists( 'appcachify' ) ) {
 			}
 
 			return false;
+		}
+
+		/**
+		 * Alters the asset URL ver query string to the modified time of the file to match appcache
+		 *
+		 * @param string $src    URL of assets
+		 * @param string $handle Identifier for script/style
+		 *
+		 * @return string
+		 */
+		public function mod_src( $src, $handle ) {
+			if ( $path = $this->get_path_from_url( $src ) ) {
+				$src = add_query_arg( array( 'ver' => filemtime( $path ) ), remove_query_arg( 'ver', $src ) );
+			}
+			return $src;
 		}
 
 		/**
@@ -299,17 +299,33 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 			$cache += $assets;
 
-			foreach( $cache as $url ) {
-				$filename = $this->get_path_from_url( $url );
-				if ( $filename ) {
+			foreach( array( 'cache', 'network', 'fallback' ) as $section ) {
+				$$section = array_filter( array_unique( apply_filters( "appcache_{$section}", $$section ) ) );
+			}
+
+			// final cache busting modifications
+			foreach( $cache as &$url ) {
+				if ( $filename = $this->get_path_from_url( $url ) ) {
 					$filemtime = filemtime( $filename );
 					$assets_updated = $assets_updated < $filemtime ? $filemtime : $assets_updated;
 					$assets_size += filesize( $filename );
+					if ( preg_match( '/\.(css|js)$/', basename( $filename ) ) ) {
+						$url = add_query_arg( array( 'ver' => $filemtime ), $url );
+					}
+				}
+
+				// w3tc CDN support
+				if ( function_exists( 'w3_instance' ) ) {
+					$dispatcher = w3_instance( 'W3_Dispatcher' );
+					$domain = $dispatcher->get_cdn_domain();
+					if ( $domain ) {
+						$url = str_replace( parse_url( get_home_url(), PHP_URL_HOST ), $domain, $url );
+					}
 				}
 			}
 
+			// concatenate URLs
 			foreach( array( 'cache', 'network', 'fallback' ) as $section ) {
-				$$section = array_filter( array_unique( apply_filters( "appcache_{$section}", $$section ) ) );
 				$$section = implode( "\n", $$section );
 			}
 
@@ -328,7 +344,7 @@ if ( ! class_exists( 'appcachify' ) ) {
 ";
 if ( ! empty( $cache ) ) :
 echo "
-# Explicitly cached 'master entries'.
+# Explicitly cached master entries.
 CACHE:
 $cache
 
