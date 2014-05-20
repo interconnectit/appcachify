@@ -1,7 +1,7 @@
 appcachify
 ==========
 
-Adds an appcache manifesto to WordPress via an iframed page. Automatically lists all queued scripts, styles and theme images.
+Adds an appcache manifest to WordPress via an iframed page. Automatically lists all queued scripts, styles and theme images.
 
 ## Installation
 
@@ -64,6 +64,24 @@ The fallback section allows you to set fallback pages or images if the user is o
 add_filter( 'appcache_fallback', function( $patterns ) {
    $patterns[] = 'wp-content/uploads/ wp-content/uploads/offline.jpg';
    return $patterns;
+} );
+?>
+```
+
+### The update header
+
+Appcaches are refetched when the manifest file content changes so we add a few items as comments at the top of the file. 
+
+ 1. The current theme (and version if available)
+ 2. The most recent modified time of any files we find the server path for
+ 3. The size of all the files that we find a server path for
+
+```php
+<?php
+add_filter( 'appcache_update_header', function( $headers ) {
+   global $wpdb;
+   $headers[ 'posts' ] = 'Posts modified: ' .  $wpdb->get_var( "SELECT post_modified FROM $wpdb->posts WHERE post_type = 'post' ORDER BY post_modified DESC LIMIT 1" );
+   return $headers;
 } );
 ?>
 ```
