@@ -314,6 +314,11 @@ if ( ! class_exists( 'appcachify' ) ) {
 					}
 				}
 
+				// non protocol URLs seem to fail, attempt to fetch
+				if ( preg_match( '/^\/\//', $url ) ) {
+					$url = set_url_scheme( "https:{$url}", parse_url( $_SERVER[ 'REQUEST_URI' ], PHP_URL_SCHEME ) );
+				}
+
 				// w3tc CDN support
 				if ( function_exists( 'w3_instance' ) ) {
 					$dispatcher = w3_instance( 'W3_Dispatcher' );
