@@ -83,7 +83,10 @@ if ( ! class_exists( 'appcachify' ) ) {
 		 * @return void
 		 */
 		public function request() {
-			global $wp, $post;
+			global $wp, $post, $wp_query;
+
+			// disable 404
+			$wp_query->is_404 = false;
 
 			// prevent output to browser
 			$this->output_buffer = ob_get_clean();
@@ -119,9 +122,12 @@ if ( ! class_exists( 'appcachify' ) ) {
 		 * @return string
 		 */
 		public function template_redirect( $template ) {
-			global $wp, $post;
+			global $wp, $post, $wp_query;
 
 			if ( is_404() && $wp->request == "offline" && $this->offline_mode ) {
+
+				// disable 404
+				$wp_query->is_404 = false;
 
 				header( 'HTTP/1.0 307 Temporary Redirect' );
 				header( 'Cache-Control: max-age=3600, must-revalidate' );
