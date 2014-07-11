@@ -84,8 +84,8 @@ if ( ! class_exists( 'appcachify' ) ) {
 		 */
 		public function request() {
 			global $wp, $post, $wp_query;
-
-			// disable 404
+			
+			// prevent 404 header being sent by caching plugins
 			$wp_query->is_404 = false;
 
 			// prevent output to browser
@@ -126,7 +126,7 @@ if ( ! class_exists( 'appcachify' ) ) {
 
 			if ( is_404() && $wp->request == "offline" && $this->offline_mode ) {
 
-				// disable 404
+				// prevent 404 header being sent by caching plugins
 				$wp_query->is_404 = false;
 
 				header( 'HTTP/1.0 307 Temporary Redirect' );
